@@ -4,6 +4,75 @@
   <br>
 </p>
 
+## Exploration, Logging, and Analysis
+
+This SDK ships example scripts to drive the rover locally with the keyboard, log data efficiently, and analyze logs.
+
+### Requirements
+
+- Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+- macOS: grant your terminal Accessibility access for keyboard control (System Settings → Privacy & Security → Accessibility).
+
+- Before running any example or code, start the SDK server and open the UI once to initialize the session:
+```bash
+hypercorn main:app --reload
+```
+Then visit http://localhost:8000 in your browser, and click join.
+
+### Keyboard Control
+
+Drive like a game (hold-to-move, W/A/S/D; space to stop; +/- to change speed; q/esc to quit):
+```bash
+python examples/keyboard_control.py
+```
+- Uses `SDK_URL` env to target a server (default `http://127.0.0.1:8000`).
+- Requires `pynput` (already listed in `requirements.txt`).
+
+### Data Logging (HDF5)
+
+Log telemetry, IMU, RPMs, and camera frames into an append-only HDF5:
+```bash
+python examples/data_logger.py --url http://127.0.0.1:8000 --rate 5 --out logs/run.h5
+# Disable frame logging if needed:
+python examples/data_logger.py --no-frames
+```
+
+Saved structure (datasets):
+- `telemetry(timestamp, battery, signal_level, orientation, lamp, speed, gps_signal, latitude, longitude, vibration)`
+- `accels(x, y, z, t)`, `gyros(x, y, z, t)`, `mags(x, y, z, t)`
+- `rpms(front_left, front_right, rear_left, rear_right, t)`
+- `controls(timestamp, linear, angular)`
+- `front_frames/` and `rear_frames/` groups with `timestamps` and variable-length `data` (encoded image bytes)
+
+Notes:
+- Rear frames are available only for Zero bots (`BOT_TYPE == "zero"`).
+- All streams include timestamps; synchronize by time during analysis.
+
+### Exploration Mode (drive + log)
+
+Run keyboard control in the foreground and log in the background to a single HDF5 file:
+```bash
+python examples/exploration.py --url http://127.0.0.1:8000 --rate 10 --out logs/run.h5
+```
+
+### Analyze Logs
+
+Summarize datasets and generate plots; saves a sample camera frame when present:
+```bash
+python examples/analyze_log.py logs/run.h5 --save-plots --outdir plots
+```
+Outputs in `plots/`:
+- `telemetry.png`, `path.png`, `accels.png`, `gyros.png`, `mags.png`, `rpms.png`, `controls.png`
+- `front_sample.jpg` and `rear_sample.jpg` if frames exist
+
+### Known Limitations
+
+- Microphone/audio is not exposed via REST in this SDK; only video frames are retrievable.
+- Rear camera endpoints return 400 for non-Zero bots.
+
 # Earth Rovers SDK v4.9
 
 ## Requirements
