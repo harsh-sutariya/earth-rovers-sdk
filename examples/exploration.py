@@ -45,7 +45,8 @@ def start_logging_thread(base_url: str, rate_hz: float, out_path: Optional[str],
         except Exception:
             pass
 
-        logger = H5DataLogger(output_path, compression="gzip", compression_level=gzip_level)
+        # Overwrite file for each exploration session
+        logger = H5DataLogger(output_path, compression="gzip", compression_level=gzip_level, mode="w")
         try:
             while not stop_event.is_set():
                 start = time.time()
@@ -91,7 +92,8 @@ def wrap_keyboard_send_logging(log_path: str) -> None:
     except Exception:
         return
 
-    logger = H5DataLogger(log_path)
+    # Append to the same session file for command taps
+    logger = H5DataLogger(log_path, mode="a")
 
     original_send = keyboard_control.send_command
 

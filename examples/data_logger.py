@@ -25,11 +25,18 @@ def initialize_sdk_session() -> None:
 
 
 class H5DataLogger:
-    def __init__(self, output_path: str, compression: str = "gzip", compression_level: int = 4) -> None:
+    def __init__(
+        self,
+        output_path: str,
+        compression: str = "gzip",
+        compression_level: int = 4,
+        mode: str = "w",
+    ) -> None:
         self.output_path = output_path
         self.compression = compression
         self.compression_level = compression_level
         self.file: Optional[h5py.File] = None
+        self.mode = mode  # "w" to overwrite, "a" to append
 
         parent_dir = os.path.dirname(self.output_path)
         if parent_dir and not os.path.exists(parent_dir):
@@ -39,7 +46,7 @@ class H5DataLogger:
         self._ensure_datasets()
 
     def _open_file(self) -> None:
-        self.file = h5py.File(self.output_path, "a")
+        self.file = h5py.File(self.output_path, self.mode)
 
     def close(self) -> None:
         if self.file is not None:
@@ -284,6 +291,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--out", default=build_default_output_path(), help="Output HDF5 file path (default: logs/rover_log_YYYYmmdd_HHMMSS.h5)")
     parser.add_argument("--gzip", type=int, default=4, help="Gzip compression level 0-9 (default: %(default)s)")
     parser.add_argument("--no-frames", action="store_true", help="Disable logging front/rear frames")
+    parser.add_argument("--append", action="store_true", help="Append to an existing file instead of overwriting")
     return parser.parse_args(argv)
 
 
@@ -298,7 +306,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     initialize_sdk_session()
 
-    logger = H5DataLogger(args.out, compression="gzip", compression_level=args.gzip)
+    file_mode = "a" if args.append else "w"
+    logger = H5DataLogger(args.out, compression="gzip", compression_level=args.gzip, mode=file_mode)
 
     stop = False
 
