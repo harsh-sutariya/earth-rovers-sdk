@@ -68,6 +68,33 @@ Outputs in `plots/`:
 - `telemetry.png`, `path.png`, `accels.png`, `gyros.png`, `mags.png`, `rpms.png`, `controls.png`
 - `front_sample.jpg` and `rear_sample.jpg` if frames exist
 
+### Image Matching and Navigation
+
+Find where a target image appears in a log and navigate by replaying controls to that point.
+
+- Image match (ORB or SIFT):
+```bash
+python examples/image_match.py logs/run.h5 --target assets/axis.jpg --method sift --topk 5 --outdir matches
+```
+
+- Extract controls up to a frame index (from `front_frames` or `rear_frames`):
+```bash
+python examples/extract_controls.py logs/run.h5 --group front_frames --idx 333 --out controls_until_333.csv
+```
+
+- Navigation (match then replay controls to target):
+```bash
+python examples/navigation.py logs/run.h5 --target assets/axis.jpg --method sift --url http://127.0.0.1:8000
+```
+Or directly to a known index:
+```bash
+python examples/navigation.py logs/run.h5 --group front_frames --idx 333 --url http://127.0.0.1:8000
+```
+
+Notes:
+- Navigation replays logged `controls` chronologically from start to the target frame timestamp.
+- Rear frames require a Zero bot (`BOT_TYPE == "zero"`).
+
 ### Known Limitations
 
 - Microphone/audio is not exposed via REST in this SDK; only video frames are retrievable.
