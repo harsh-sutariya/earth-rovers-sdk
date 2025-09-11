@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import requests
 import h5py
+import base64
 
 
 DEFAULT_BASE_URL = os.getenv("SDK_URL", "http://127.0.0.1:8000")
@@ -94,6 +95,45 @@ class H5DataLogger:
         ensure("gyros", sensors_xyz_dtype)
         ensure("mags", sensors_xyz_dtype)
         ensure("rpms", rpms_dtype)
+
+        # Images: front/rear as groups with timestamps and variable-length bytes
+        def ensure_image_group(group_name: str) -> None:
+            if group_name not in self.file:
+                grp = self.file.create_group(group_name)
+            else:
+                grp = self.file[group_name]
+            if "timestamps" not in grp:
+                grp.create_dataset(
+                    "timestamps",
+                    shape=(0,),
+                    maxshape=(None,),
+                    dtype="<f8",
+                    chunks=True,
+                    compression=self.compression,
+                    compression_opts=self.compression_level,
+                )
+            if "data" not in grp:
+                vlen_uint8 = h5py.vlen_dtype(np.dtype("uint8"))
+                grp.create_dataset(
+                    "data",
+                    shape=(0,),
+                    maxshape=(None,),
+                    dtype=vlen_uint8,
+                    chunks=True,
+                    compression=self.compression,
+                    compression_opts=self.compression_level,
+                )
+
+        ensure_image_group("front_frames")
+        ensure_image_group("rear_frames")
+
+        # Control commands (commanded velocities)
+        controls_dtype = np.dtype([
+            ("timestamp", "<f8"),
+            ("linear", "<f4"),
+            ("angular", "<f4"),
+        ])
+        ensure("controls", controls_dtype)
 
     def _append_rows(self, dataset_name: str, rows: np.ndarray) -> None:
         if rows.size == 0:
@@ -198,6 +238,39 @@ class H5DataLogger:
         # Keep file in a consistent state
         self.file.flush()
 
+    def _append_image(self, group_name: str, image_bytes: bytes, timestamp: float) -> None:
+        assert self.file is not None
+        grp = self.file[group_name]
+        ts_ds = grp["timestamps"]
+        data_ds = grp["data"]
+        # Append timestamp
+        ts_ds.resize((ts_ds.shape[0] + 1,))
+        ts_ds[-1] = float(timestamp)
+        # Append bytes as vlen uint8
+        arr = np.frombuffer(image_bytes, dtype=np.uint8)
+        data_ds.resize((data_ds.shape[0] + 1,))
+        data_ds[-1] = arr
+        self.file.flush()
+
+    def log_front_frame_b64(self, b64_frame: str, timestamp: float) -> None:
+        try:
+            img_bytes = base64.b64decode(b64_frame, validate=False)
+        except Exception:
+            return
+        self._append_image("front_frames", img_bytes, timestamp)
+
+    def log_rear_frame_b64(self, b64_frame: str, timestamp: float) -> None:
+        try:
+            img_bytes = base64.b64decode(b64_frame, validate=False)
+        except Exception:
+            return
+        self._append_image("rear_frames", img_bytes, timestamp)
+
+    def log_control(self, linear: float, angular: float, timestamp: float) -> None:
+        assert self.file is not None
+        row = np.array((float(timestamp), float(linear), float(angular)), dtype=self.file["controls"].dtype)
+        self._append_rows("controls", row.reshape(1,))
+
 
 def build_default_output_path(prefix: str = "logs") -> str:
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -210,6 +283,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--rate", type=float, default=5.0, help="Polling rate in Hz (default: %(default)s)")
     parser.add_argument("--out", default=build_default_output_path(), help="Output HDF5 file path (default: logs/rover_log_YYYYmmdd_HHMMSS.h5)")
     parser.add_argument("--gzip", type=int, default=4, help="Gzip compression level 0-9 (default: %(default)s)")
+    parser.add_argument("--no-frames", action="store_true", help="Disable logging front/rear frames")
     return parser.parse_args(argv)
 
 
@@ -220,6 +294,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     DEFAULT_BASE_URL = args.url.rstrip("/")
     DATA_URL = f"{DEFAULT_BASE_URL}/data"
     SDK_URL = f"{DEFAULT_BASE_URL}/sdk"
+    V2_URL = f"{DEFAULT_BASE_URL}/v2/screenshot"
 
     initialize_sdk_session()
 
@@ -253,6 +328,20 @@ def main(argv: Optional[List[str]] = None) -> int:
             except Exception:
                 # Continue trying; transient network/browser errors are expected during startup
                 pass
+
+            # Optionally fetch camera frames at the same cadence
+            if not args.no_frames:
+                try:
+                    v2 = requests.get(V2_URL, timeout=5)
+                    if v2.ok:
+                        js = v2.json()
+                        ts = float(js.get("timestamp", time.time()))
+                        if "front_frame" in js:
+                            logger.log_front_frame_b64(js["front_frame"], ts)
+                        if "rear_frame" in js:
+                            logger.log_rear_frame_b64(js["rear_frame"], ts)
+                except Exception:
+                    pass
 
             now = time.time()
             if now - last_print > 5.0:

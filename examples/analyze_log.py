@@ -6,6 +6,7 @@ from typing import Optional
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt  
+import cv2
 
 
 class ExampleArgumentParser(argparse.ArgumentParser):
@@ -128,6 +129,42 @@ def plot_if_available(h5: h5py.File, outdir: str, enable: bool) -> None:
         plt.tight_layout()
         plt.savefig(os.path.join(outdir, "rpms.png"))
         plt.close()
+
+    # Controls
+    if "controls" in h5:
+        ctrl = h5["controls"][:]
+        if ctrl.size > 0:
+            t0 = float(ctrl["timestamp"][0])
+            tt = ctrl["timestamp"] - t0
+            plt.figure()
+            plt.plot(tt, ctrl["linear"], label="linear", alpha=0.9)
+            plt.plot(tt, ctrl["angular"], label="angular", alpha=0.9)
+            plt.xlabel("time (s)")
+            plt.ylabel("command")
+            plt.title("Commanded velocities")
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            plt.tight_layout()
+            plt.savefig(os.path.join(outdir, "controls.png"))
+            plt.close()
+
+    # Save a sample front/rear frame if present
+    def save_sample(group_name: str, fname: str) -> None:
+        if group_name not in h5:
+            return
+        grp = h5[group_name]
+        if grp["data"].shape[0] == 0:
+            return
+        # Take the last frame
+        b = bytes(grp["data"][-1])
+        img = np.frombuffer(b, dtype=np.uint8)
+        img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+        if img is None:
+            return
+        cv2.imwrite(os.path.join(outdir, fname), img)
+
+    save_sample("front_frames", "front_sample.jpg")
+    save_sample("rear_frames", "rear_sample.jpg")
 
 
 def main(argv: Optional[list[str]] = None) -> int:
