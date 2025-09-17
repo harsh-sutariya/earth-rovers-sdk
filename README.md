@@ -7,6 +7,12 @@
 ## Exploration, Logging, and Analysis
 
 This SDK ships example scripts to drive the rover locally with the keyboard, log data efficiently, and analyze logs.
+### Preparation
+```bash
+# clone this repo
+git clone https://github.com/ai4ce/nyu-earthrover
+cd nyu-earthrover
+```
 
 ### Requirements
 
