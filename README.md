@@ -19,8 +19,19 @@ cd nyu-earthrover
 
 Create a Conda environment
 ```bash
-conda env create -f environment.yml
+conda create -n erv python=3.11
 conda activate erv
+pip install -r requirements.txt
+```
+
+**For Windows users:**
+```bash
+pip install windows-curses
+```
+
+**For Windows users:** Set `CHROME_EXECUTABLE_PATH` to:
+```bash
+CHROME_EXECUTABLE_PATH="C:\Program Files\Google\Chrome\Application\chrome.exe"
 ```
 
 Start the SDK server and initialize the UI (required before running examples)
@@ -158,10 +169,22 @@ IMAGE_QUALITY=0.8
 IMAGE_FORMAT=jpeg
 ```
 
+**For Windows users:** Set `CHROME_EXECUTABLE_PATH` to:
+```bash
+CHROME_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
+```
+
 2. Install the SDK
 
 ```bash
-pip3 install -r requirements.txt
+conda create -n erv python=3.11
+conda activate erv
+pip install -r requirements.txt
+```
+
+**For Windows users:**
+```bash
+pip install windows-curses
 ```
 
 3. Run the SDK
