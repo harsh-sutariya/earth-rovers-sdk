@@ -14,7 +14,7 @@ class ExampleArgumentParser(argparse.ArgumentParser):
         self.print_usage(sys.stderr)
         print(f"{os.path.basename(__file__)}: error: {message}")
         print("Example:")
-        print("  python examples/analyze_log.py logs/rover_log_20250101_120000.h5 --save-plots --outdir plots")
+        print("  python examples/utils/analyze_log.py logs/rover_log_20250101_120000.h5 --save-plots --outdir plots")
         self.exit(2)
 
 
@@ -24,7 +24,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=(
             "Example:\n"
-            "  python examples/analyze_log.py logs/rover_log_20250101_120000.h5 --save-plots --outdir plots\n"
+            "  python examples/utils/analyze_log.py logs/rover_log_20250101_120000.h5 --save-plots --outdir plots\n"
         ),
     )
     parser.add_argument("path", help="Path to HDF5 log (e.g., logs/rover_log_*.h5)")

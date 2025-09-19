@@ -4,46 +4,55 @@
   <br>
 </p>
 
-## Exploration, Logging, and Analysis
+## Exploration, Logging, and Analysis (Baseline)
 
-This SDK ships example scripts to drive the rover locally with the keyboard, log data efficiently, and analyze logs.
-### Preparation
+This repository provides a baseline solution built on top of the Earth Rovers SDK: keyboard teleoperation, high‑throughput data logging, offline analysis/exports, and image‑based navigation.
+
+### 1) Setup
+
+Preparation
 ```bash
 # clone this repo
 git clone https://github.com/ai4ce/nyu-earthrover
 cd nyu-earthrover
 ```
 
-### Requirements
-
-- Install dependencies:
+Create a Conda environment
 ```bash
-pip install -r requirements.txt
+conda env create -f environment.yml
+conda activate erv
 ```
-- macOS: grant your terminal Accessibility access for keyboard control (System Settings → Privacy & Security → Accessibility).
 
-- Before running any example or code, start the SDK server and open the UI once to initialize the session:
+Start the SDK server and initialize the UI (required before running examples)
 ```bash
 hypercorn main:app --reload
 ```
-Then visit http://localhost:8000 in your browser, and click join.
+Then open http://localhost:8000 in your browser and click Join.
 
-### Keyboard Control
+macOS note: grant your terminal Accessibility access for keyboard control (System Settings → Privacy & Security → Accessibility).
 
-Drive like a game (hold-to-move, W/A/S/D; space to stop; +/- to change speed; q/esc to quit):
+### 2) Exploration (drive + log)
+
+In most cases, open a new terminal, activate the environment, then run:
 ```bash
-python examples/keyboard_control.py
+conda activate erv
+python examples/exploration.py --url http://127.0.0.1:8000 --rate 10 --out logs/run.h5
 ```
-- Uses `SDK_URL` env to target a server (default `http://127.0.0.1:8000`).
-- Requires `pynput` (already listed in `requirements.txt`).
 
-### Data Logging (HDF5)
+For standalone keyboard control or logging, see Utilities below.
 
-Log telemetry, IMU, RPMs, and camera frames into an append-only HDF5:
+### 3) Utilities (logging, analysis, exports)
+
+- Keyboard control (standalone; hold W/A/S/D; space to stop; +/- speed; q/esc to quit)
 ```bash
-python examples/data_logger.py --url http://127.0.0.1:8000 --rate 5 --out logs/run.h5
-# Disable frame logging if needed:
-python examples/data_logger.py --no-frames
+python examples/utils/keyboard_control.py
+```
+
+- Data logger (HDF5; telemetry, IMU, RPMs, controls, frames)
+```bash
+python examples/utils/data_logger.py --url http://127.0.0.1:8000 --rate 5 --out logs/run.h5
+# Disable frame logging if needed
+python examples/utils/data_logger.py --no-frames
 ```
 
 Saved structure (datasets):
@@ -51,48 +60,46 @@ Saved structure (datasets):
 - `accels(x, y, z, t)`, `gyros(x, y, z, t)`, `mags(x, y, z, t)`
 - `rpms(front_left, front_right, rear_left, rear_right, t)`
 - `controls(timestamp, linear, angular)`
-- `front_frames/` and `rear_frames/` groups with `timestamps` and variable-length `data` (encoded image bytes)
+- `front_frames/` and `rear_frames/` groups with `timestamps` and variable‑length `data` (encoded image bytes)
 
 Notes:
 - Rear frames are available only for Zero bots (`BOT_TYPE == "zero"`).
 - All streams include timestamps; synchronize by time during analysis.
 
-### Exploration Mode (drive + log)
-
-Run keyboard control in the foreground and log in the background to a single HDF5 file:
+- Analyze logs (creates plots; saves sample camera frames if present)
 ```bash
-python examples/exploration.py --url http://127.0.0.1:8000 --rate 10 --out logs/run.h5
+python examples/utils/analyze_log.py logs/run.h5 --save-plots --outdir plots
 ```
+Outputs in `plots/`: `telemetry.png`, `path.png`, `accels.png`, `gyros.png`, `mags.png`, `rpms.png`, `controls.png`, and `front_sample.jpg`/`rear_sample.jpg` if frames exist.
 
-### Analyze Logs
-
-Summarize datasets and generate plots; saves a sample camera frame when present:
+- Export images (dump frames to disk with automatic format detection)
 ```bash
-python examples/analyze_log.py logs/run.h5 --save-plots --outdir plots
+python examples/utils/export_images.py logs/run.h5 --groups front_frames,rear_frames --outdir exported_frames --naming index --index-csv
 ```
-Outputs in `plots/`:
-- `telemetry.png`, `path.png`, `accels.png`, `gyros.png`, `mags.png`, `rpms.png`, `controls.png`
-- `front_sample.jpg` and `rear_sample.jpg` if frames exist
+Writes images to `exported_frames/<group>/` and optional `index.csv` mapping filename → timestamp.
 
-### Image Matching and Navigation
+### 4) Navigation (image match → replay controls)
 
-Find where a target image appears in a log and navigate by replaying controls to that point.
+Find where a target image appears in the log and navigate by replaying the logged controls up to that frame.
 
-- Image match (ORB or SIFT):
+In most cases, open a new terminal, activate the environment, then run:
 ```bash
-python examples/image_match.py logs/run.h5 --target assets/axis.jpg --method sift --topk 5 --outdir matches
-```
-
-- Extract controls up to a frame index (from `front_frames` or `rear_frames`):
-```bash
-python examples/extract_controls.py logs/run.h5 --group front_frames --idx 333 --out controls_until_333.csv
-```
-
-- Navigation (match then replay controls to target):
-```bash
+conda activate erv
 python examples/navigation.py logs/run.h5 --target assets/axis.jpg --method sift --url http://127.0.0.1:8000
 ```
-Or directly to a known index:
+
+Other cases and standalone runs:
+
+- Image match only (ORB or SIFT) to inspect top matches
+```bash
+python examples/utils/image_match.py logs/run.h5 --target assets/axis.jpg --method sift --topk 5 --outdir matches
+```
+
+- Extract controls up to a frame index (`front_frames` or `rear_frames`)
+```bash
+python examples/utils/extract_controls.py logs/run.h5 --group front_frames --idx 333 --out controls_until_333.csv
+```
+Or directly to a known index
 ```bash
 python examples/navigation.py logs/run.h5 --group front_frames --idx 333 --url http://127.0.0.1:8000
 ```
@@ -104,8 +111,7 @@ Notes:
 ### Known Limitations
 
 - Microphone/audio is not exposed via REST in this SDK; only video frames are retrievable.
-- Rear camera endpoints return 400 for non-Zero bots.
-
+- Rear camera endpoints return 400 for non‑Zero bots.
 # Earth Rovers SDK v4.9
 
 ## Requirements

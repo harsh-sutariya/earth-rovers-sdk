@@ -81,7 +81,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         description="Find best matching frame in HDF5 log for a target image",
         epilog=(
             "Example:\n"
-            "  python examples/image_match.py logs/run.h5 --target assets/axis.jpg --method sift --topk 5 --outdir matches\n"
+            "  python examples/utils/image_match.py logs/run.h5 --target assets/axis.jpg --method sift --topk 5 --outdir matches\n"
         ),
     )
     parser.add_argument("log", help="Path to HDF5 log with frames")

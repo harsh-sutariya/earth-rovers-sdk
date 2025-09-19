@@ -42,7 +42,7 @@ def find_best_match_idx(log_path: str, group: str, target_path: str, method: str
     """Return (best_idx, best_timestamp)."""
     # Import sibling module (same style as exploration.py)
     try:
-        import image_match as im  # type: ignore
+        from utils import image_match as im  # type: ignore
     except Exception as exc:
         raise SystemExit(f"Failed to import image_match: {exc}")
 
@@ -81,7 +81,7 @@ def find_best_match_idx(log_path: str, group: str, target_path: str, method: str
 def load_controls_until(log_path: str, group: str, idx: int) -> np.ndarray:
     # Reuse extract_controls utilities (same style as exploration.py)
     try:
-        import extract_controls as ec  # type: ignore
+        from utils import extract_controls as ec  # type: ignore
     except Exception as exc:
         raise SystemExit(f"Failed to import extract_controls: {exc}")
     return ec.extract_controls_until(log_path, group, idx)

@@ -26,7 +26,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
 def start_logging_thread(base_url: str, rate_hz: float, out_path: Optional[str], gzip_level: int) -> tuple[Thread, Event, str]:
     # Lazy import from local directory; this file should be run from project root
     try:
-        from data_logger import H5DataLogger, build_default_output_path  # type: ignore
+        from utils.data_logger import H5DataLogger, build_default_output_path  # type: ignore
     except Exception as exc:
         print(f"Failed to import data_logger: {exc}")
         raise
@@ -86,8 +86,8 @@ def start_logging_thread(base_url: str, rate_hz: float, out_path: Optional[str],
 def wrap_keyboard_send_logging(log_path: str) -> None:
     """Monkey-patch keyboard_control.send_command to also log commanded velocities."""
     try:
-        from data_logger import H5DataLogger  # type: ignore
-        import keyboard_control  # type: ignore
+        from utils.data_logger import H5DataLogger  # type: ignore
+        from utils import keyboard_control  # type: ignore
         import time as _time
     except Exception:
         return
@@ -123,7 +123,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     # Run keyboard controller (foreground, curses UI)
     try:
         import curses  # local import to avoid issues in non-TTY contexts
-        import keyboard_control  # type: ignore
+        from utils import keyboard_control  # type: ignore
     except Exception as exc:
         # Stop logger before exiting
         stop_event.set()

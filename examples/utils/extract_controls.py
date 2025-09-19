@@ -14,7 +14,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         ),
         epilog=(
             "Example:\n"
-            "  python examples/extract_controls.py logs/run.h5 --group front_frames --idx 333 --out controls_until_333.csv\n"
+            "  python examples/utils/extract_controls.py logs/run.h5 --group front_frames --idx 333 --out controls_until_333.csv\n"
         ),
     )
     parser.add_argument("log", help="Path to HDF5 log")
