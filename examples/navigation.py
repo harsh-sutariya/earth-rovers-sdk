@@ -40,7 +40,6 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
 def find_best_match_idx(log_path: str, group: str, target_path: str, method: str) -> Tuple[int, float]:
     """Return (best_idx, best_timestamp)."""
-    # Import sibling module (same style as exploration.py)
     try:
         from utils import image_match as im  # type: ignore
     except Exception as exc:
@@ -79,7 +78,7 @@ def find_best_match_idx(log_path: str, group: str, target_path: str, method: str
 
 
 def load_controls_until(log_path: str, group: str, idx: int) -> np.ndarray:
-    # Reuse extract_controls utilities (same style as exploration.py)
+    """Load controls proportional to the target frame index."""
     try:
         from utils import extract_controls as ec  # type: ignore
     except Exception as exc:
@@ -96,13 +95,21 @@ def send_command(url: str, linear: float, angular: float, timeout_s: float = 2.0
         return False
 
 
-def replay_controls(url: str, controls: np.ndarray, speed: float = 1.0, dry_run: bool = False) -> None:
+def replay_controls(
+    url: str,
+    controls: np.ndarray,
+    speed: float = 1.0,
+    dry_run: bool = False,
+) -> None:
+    """Replay controls and stop at the end."""
     if controls.size == 0:
         print("No controls to replay")
         return
+    
+    # Replay all controls with timing
     t0 = float(controls["timestamp"][0])
     last_t = t0
-    for row in controls:
+    for i, row in enumerate(controls):
         ts = float(row["timestamp"])
         lin = float(row["linear"])
         ang = float(row["angular"])
@@ -110,34 +117,59 @@ def replay_controls(url: str, controls: np.ndarray, speed: float = 1.0, dry_run:
         if dt > 0:
             time.sleep(min(dt, 0.2))  # cap to avoid very long delays
         last_t = ts
+        
         if dry_run:
-            print(f"send linear={lin:.3f} angular={ang:.3f}")
+            is_last = i == len(controls) - 1
+            marker = " [LAST]" if is_last else ""
+            print(f"[{i+1}/{len(controls)}] send linear={lin:.3f} angular={ang:.3f}{marker}")
         else:
             ok = send_command(url, lin, ang)
             if not ok:
-                print("warn: failed to send command")
+                print(f"warn: failed to send command {i+1}/{len(controls)}")
+    
+    # Stop the robot
+    print("Reached target frame, stopping...")
+    if dry_run:
+        print("send linear=0.000 angular=0.000 (stop)")
+    else:
+        # Send stop commands at 20Hz for 2 seconds to ensure robot stops
+        stop_duration = 2.0
+        stop_interval = 0.05
+        start_time = time.time()
+        count = 0
+        while time.time() - start_time < stop_duration:
+            ok = send_command(url, 0.0, 0.0)
+            count += 1
+            time.sleep(stop_interval)
+        print(f"Sent {count} stop commands")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
 
     if args.idx is not None and args.target is None:
-        # Use provided index directly
-        idx = int(args.idx)
+        target_idx = int(args.idx)
     else:
         if not args.target:
             raise SystemExit("Provide --target or --idx")
         best_idx, _ = find_best_match_idx(args.log, args.group, args.target, args.method)
         print(f"Best match: idx={best_idx}")
-        idx = best_idx
+        target_idx = best_idx
 
-    controls = load_controls_until(args.log, args.group, idx)
-    print(f"Replaying {controls.size} controls at {args.url} (speed x{args.speed})")
+    # Get total frames for info
+    with h5py.File(args.log, "r") as f:
+        total_frames = f[args.group]["timestamps"].shape[0]
+        total_controls = f["controls"].shape[0]
+
+    # Load controls proportional to target frame
+    controls = load_controls_until(args.log, args.group, target_idx)
+    
+    print(f"Target: frame {target_idx}/{total_frames}")
+    print(f"Replaying: {controls.size}/{total_controls} controls at {args.url} (speed x{args.speed})")
+    
     replay_controls(args.url, controls, speed=args.speed, dry_run=args.dry_run)
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

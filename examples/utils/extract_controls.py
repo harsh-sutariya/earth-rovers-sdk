@@ -66,18 +66,36 @@ def get_frame_timestamp(log_path: str, group: str, idx: int) -> float:
 
 
 def extract_controls_until(log_path: str, group: str, idx: int) -> np.ndarray:
-    """Return controls up to the frame timestamp (structured array with fields timestamp,linear,angular)."""
-    t_end = get_frame_timestamp(log_path, group, idx)
+    """Return controls up to the frame index.
+    
+    Uses proportional index mapping
+    """
     with h5py.File(log_path, "r") as f:
         if "controls" not in f:
             raise SystemExit("No controls dataset in log")
         controls = f["controls"][:]
+        
+        if group not in f or "timestamps" not in f[group]:
+            raise SystemExit(f"No timestamps found in group {group}")
+        total_frames = f[group]["timestamps"].shape[0]
+        
     if controls.size == 0:
         return controls
+    
     order = np.argsort(controls["timestamp"])  # chronological
     controls = controls[order]
-    mask = controls["timestamp"] <= t_end
-    return controls[mask]
+    total_controls = len(controls)
+    
+    # Use proportional index mapping: frame idx/total_frames -> control idx/total_controls
+    if idx >= total_frames:
+        idx = total_frames - 1
+    
+    # Calculate proportional control index
+    ratio = (idx + 1) / total_frames
+    control_count = int(ratio * total_controls)
+    control_count = max(1, min(control_count, total_controls))  # At least 1, at most all
+    
+    return controls[:control_count]
 
 
 def main(argv: Optional[list[str]] = None) -> int:
